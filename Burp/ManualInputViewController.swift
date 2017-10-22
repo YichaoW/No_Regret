@@ -27,6 +27,7 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 		if imgName != "" {
 			self.view.addSubview(loading)
 		}
+		print("View DId load")
 		self.navigationController?.navigationBar.isHidden = true;
 		nameInput.delegate = self
 		dayInput.delegate = self
@@ -84,13 +85,12 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
     }
 
 	func getBarcode(imgName: String) {
+		print("get Barcode")
 		if imgName == "" {
 			return
 		}
 		var request = URLRequest(url: URL(string: "https://api.havenondemand.com/1/api/sync/recognizebarcodes/v1")!)
 		request.httpMethod = "POST"
-		
-		
 		
 		let apikey = "c2551696-edaa-4131-a197-ab9b6e9f2e88"
 		let postString = "apikey=\(apikey)&url=\("https://students.washington.edu/wangyic/dubhacks/imgs/" + imgName + ".jpeg")"
@@ -110,7 +110,6 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 				print("error=\(String(describing: error))")
 				return
 			}
-			
 			if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {
 				// check for http errors
 				OperationQueue.main.addOperation {
@@ -127,11 +126,18 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 			
 			
 			let json = try! JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any]
+
+		
 			let barcode = json?["barcode"] as? [[String: Any]]
+			print(barcode)
+			if (barcode?.isEmpty)! {
+				self.popAlert(content: "No Related information")
+			}
 			for item in barcode! {
-				if item["text"] as! String == "" {
+				if item["text"] as! String == "" || (item["job-id"] != nil){
 					self.popAlert(content: "No Related information")
 				} else {
+					print("Get Item INfo")
 					self.getItemInfo(barcode: item["text"] as! String)
 				}
 			}
@@ -145,6 +151,7 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 	}
 	
 	func getItemInfo(barcode : String) {
+		print("get item info")
 		var request = URLRequest(url: URL(string: "https://www.buycott.com/api/v4/products/lookup")!)
 		let postString = "barcode=\(barcode)&access_token=\("pJtIYJhp41w_rWy1z4jE9K8seU4JUBpy0IJmNTse")"
 		
@@ -168,6 +175,7 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 				let json = try! JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any]
 				let info = json?["products"] as? [[String: Any]]
 				if info != nil {
+					print("\n\nFound Information\n\n")
 					for item in info! {
 						self.nameInput.text = item["product_name"] as! String
 						self.imgURL = item["product_image_url"] as! String
@@ -178,6 +186,7 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 						print(self.imgURL)
 					}
 				} else {
+					print("\n\nNOT Found Information\n\n")
 					self.popAlert(content: "No information found. Please enter manually.")
 				}
 			}
