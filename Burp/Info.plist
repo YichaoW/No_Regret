@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Used to upload comment images</string>
+	<string>$(PRODUCT_NAME) photo use</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Use to shoot </string>
+	<string>$(PRODUCT_NAME) camera use</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>

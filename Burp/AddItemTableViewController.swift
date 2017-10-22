@@ -8,9 +8,10 @@
 
 import UIKit
 
-class AddItemTableViewController: UITableViewController {
+class AddItemTableViewController: UITableViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
 
 	let imagePicker = UIImagePickerController()
+	var imgName = ""
 	
 	@IBAction func Done(_ sender: UIBarButtonItem) {
 		self.navigationController?.dismiss(animated: true, completion: nil)
@@ -58,11 +59,47 @@ class AddItemTableViewController: UITableViewController {
 //			imageChanged = true
 //			selectedImage = pickedImage
 //			imageField.image = pickedImage
+			imgName = String(describing: Date())
+			uploadImg(imgName: imgName, pickedImage : pickedImage)
 		} else {
 			print("Something went wrong")
 		}
 		
-		dismiss(animated: true, completion: nil)
+//		dismiss(animated: true, completion: nil)
+	}
+	
+	func uploadImg(imgName: String, pickedImage: UIImage) {
+		let imageData = UIImageJPEGRepresentation(pickedImage, 0.5)!
+		var b64 = imageData.base64EncodedString()
+		b64 = b64.replacingOccurrences(of: "+", with: "%2B")
+		
+		let postString = "name=\(imgName)&image=\(b64)"
+		
+		var request = URLRequest(url: URL(string: "https://students.washington.edu/wangyic/dubhacks/uploadImg.php")!)
+		request.httpMethod = "POST"
+		request.httpBody = postString.data(using: .utf8)
+		
+		let task = URLSession.shared.dataTask(with: request) { data, response, error in
+			guard let data = data, error == nil else {
+				// check for fundamental networking error
+				print("error=\(String(describing: error))")
+				return
+			}
+			
+			if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {
+				// check for http errors
+				print("statusCode should be 200, but is \(httpStatus.statusCode)")
+				print("response = \(String(describing: response))")
+			}
+			OperationQueue.main.addOperation {
+				self.navigationController?.dismiss(animated: true, completion: nil)
+			}
+			let responseString = String(data: data, encoding: .utf8)!
+			print("Feedback: " + responseString)
+			print(imgName)
+			self.performSegue(withIdentifier: "imageSegue", sender: nil)
+		}
+		task.resume()
 	}
 	
 	func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
@@ -114,14 +151,19 @@ class AddItemTableViewController: UITableViewController {
     }
     */
 
-    /*
+	
     // MARK: - Navigation
 
     // In a storyboard-based application, you will often want to do a little preparation before navigation
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         // Get the new view controller using segue.destinationViewController.
         // Pass the selected object to the new view controller.
+//		if segue.identifier == "imageSegue" {
+			let dest = segue.destination as! ManualInputViewController
+			dest.imgName = imgName
+			print(imgName)
+//		}
     }
-    */
+    
 
 }
