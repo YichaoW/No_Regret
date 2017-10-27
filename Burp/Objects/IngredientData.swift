@@ -19,6 +19,7 @@ struct expData {
 	var category : Category
 	var expirationDate : Date
 	var notify : Int
+	var imgName : String
 }
 
 //extension expData {

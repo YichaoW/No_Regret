@@ -37,6 +37,9 @@ class ManageIngredientViewController: ViewController, UITableViewDelegate, UITab
 		// Configure the cell...
 		let currentExpData = expDataCollection[indexPath.row]
 		cell.name.text = currentExpData.name
+		if currentExpData.imgName != "" {
+			downloadIngredientImage(url: currentExpData.imgName, cell: cell)
+		}
 		let calendar = NSCalendar.current
 		
 		// Replace the hour (time) of both dates with 00:00
@@ -46,6 +49,44 @@ class ManageIngredientViewController: ViewController, UITableViewDelegate, UITab
 		cell.countDown.text = String(components.day!)
 		
 		return cell
+	}
+	
+	fileprivate func downloadIngredientImage(url : String, cell : ManageTableCell) {
+		let source = url
+		let requestURL = URL(string: source)!
+		let sessionConfig = URLSessionConfiguration.default
+		let session = URLSession(configuration: sessionConfig)
+		let request = URLRequest(url: requestURL)
+		
+		let task = session.downloadTask(with: request) { (location, response, error) in
+			if let location = location, error == nil {
+				let locationPath = location.path
+				let index = url.index(url.endIndex, offsetBy: -5)
+				let cache = NSHomeDirectory() + "/Library/Caches/\(url.substring(from: index)).png"
+				let fileManager = FileManager.default
+				
+				do {
+					try fileManager.moveItem(atPath: locationPath, toPath: cache)
+				} catch CocoaError.fileWriteFileExists {
+					try! fileManager.removeItem(atPath: cache)
+					try! fileManager.moveItem(atPath: locationPath, toPath: cache)
+				} catch let error as NSError {
+					print("Error: \(error.domain)\(error.code)")
+				}
+				DispatchQueue.main.async {
+					cell.pic.image = UIImage(contentsOfFile: cache)
+				}
+			} else {
+				OperationQueue.main.addOperation {
+					let alert = UIAlertController.init(title: "Error!", message: "Network Error", preferredStyle: .alert)
+					let action = UIAlertAction.init(title: "Retry", style: .default, handler: {(alert: UIAlertAction!) in
+						self.viewDidLoad()})
+					alert.addAction(action)
+					self.present(alert, animated: true, completion: nil)
+				}
+			}
+		}
+		task.resume()
 	}
 	
 	func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
@@ -81,7 +122,8 @@ class ManageIngredientViewController: ViewController, UITableViewDelegate, UITab
 			dateFormatter.dateFormat = "yyyy-MM-dd"
 			let expDate : Date = dateFormatter.date(from: item[2])!
 			let notifyDay : Int = Int(item[3])!
-			expDataCollection += [expData(name: name, category: category, expirationDate: expDate, notify: notifyDay)]
+			let imgName : String = item[4]
+			expDataCollection += [expData(name: name, category: category, expirationDate: expDate, notify: notifyDay, imgName: imgName)]
 		}
 		tableView.reloadData()
 	}
@@ -99,16 +141,7 @@ class ManageIngredientViewController: ViewController, UITableViewDelegate, UITab
 		// Dispose of any resources that can be recreated.
 	}
 	
-	override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-		if segue.identifier == "manageToRecipe" {
-			var list : String = expDataCollection[0].name.replacingOccurrences(of: " ", with: "+")
-			if expDataCollection.count > 1 {
-				for i in 1..<expDataCollection.count {
-					list.append("%2C\(expDataCollection[i].name.replacingOccurrences(of: " ", with: "+"))")
-				}
-			}
-			let dest = segue.destination as! RecipeTableViewController
-			dest.ingList = list
-		}
-	}
+//	override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+//		
+//	}
 }

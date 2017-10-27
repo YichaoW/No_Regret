@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import UserNotifications
 
 class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSource, UIImagePickerControllerDelegate, UINavigationControllerDelegate, UITextFieldDelegate {
 	
@@ -16,16 +17,20 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 	@IBOutlet weak var dateInput: UITextField!
 	@IBOutlet weak var dayInput: UITextField!
 	
+	let loading = ProgressHUD(text: "Loading")
 	var pickOption = ["Uncategorized", "Food", "Medicine"]
-	
+	var imgName = ""
+	var imgURL = ""
 	
     override func viewDidLoad() {
         super.viewDidLoad()
-		
+		if imgName != "" {
+			self.view.addSubview(loading)
+		}
+		print("View DId load")
 		self.navigationController?.navigationBar.isHidden = true;
 		nameInput.delegate = self
 		dayInput.delegate = self
-		
 		let pickerView = UIPickerView()
 		pickerView.showsSelectionIndicator = true
 		pickerView.delegate = self
@@ -75,8 +80,121 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 		categoryInput.inputView = pickerView
 		categoryInput.inputAccessoryView = toolBar2
 		dayInput.inputAccessoryView = toolBar3
+		
+		getBarcode(imgName: imgName)
     }
 
+	func getBarcode(imgName: String) {
+		print("get Barcode")
+		if imgName == "" {
+			return
+		}
+		var request = URLRequest(url: URL(string: "https://api.havenondemand.com/1/api/sync/recognizebarcodes/v1")!)
+		request.httpMethod = "POST"
+		
+		let apikey = "c2551696-edaa-4131-a197-ab9b6e9f2e88"
+		let postString = "apikey=\(apikey)&url=\("https://students.washington.edu/wangyic/dubhacks/imgs/" + imgName + ".jpeg")"
+		
+		request.httpBody = postString.data(using: .utf8)
+		let task = URLSession.shared.dataTask(with: request) { data, response, error in
+			guard let data = data, error == nil else {
+				// check for fundamental networking error
+				OperationQueue.main.addOperation {
+					let alert = UIAlertController.init(title: "Error!", message: "Network Error", preferredStyle: .alert)
+					let action = UIAlertAction.init(title: "Retry", style: .default, handler: {(alert: UIAlertAction!) in
+						self.viewDidLoad()
+						self.viewWillAppear(true)})
+					alert.addAction(action)
+					self.present(alert, animated: true, completion: nil)
+				}
+				print("error=\(String(describing: error))")
+				return
+			}
+			if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {
+				// check for http errors
+				OperationQueue.main.addOperation {
+					let alert = UIAlertController.init(title: "Error!", message: "Network Error", preferredStyle: .alert)
+					let action = UIAlertAction.init(title: "Retry", style: .default, handler: {(alert: UIAlertAction!) in
+						self.viewDidLoad()
+						self.viewWillAppear(true)})
+					alert.addAction(action)
+					self.present(alert, animated: true, completion: nil)
+				}
+				print("statusCode should be 200, but is \(httpStatus.statusCode)")
+				print("response = \(String(describing: response))")
+			}
+			
+			
+			let json = try! JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any]
+
+		
+			let barcode = json?["barcode"] as? [[String: Any]]
+			print(barcode)
+			if (barcode?.isEmpty)! {
+				self.popAlert(content: "No Related information")
+			}
+			for item in barcode! {
+				if item["text"] as! String == "" || (item["job-id"] != nil){
+					self.popAlert(content: "No Related information")
+				} else {
+					print("Get Item INfo")
+					self.getItemInfo(barcode: item["text"] as! String)
+				}
+			}
+			OperationQueue.main.addOperation {
+				if imgName != "" {
+					self.loading.removeFromSuperview()
+				}
+			}
+		}
+		task.resume()
+	}
+	
+	func getItemInfo(barcode : String) {
+		print("get item info")
+		var request = URLRequest(url: URL(string: "https://www.buycott.com/api/v4/products/lookup")!)
+		let postString = "barcode=\(barcode)&access_token=\("pJtIYJhp41w_rWy1z4jE9K8seU4JUBpy0IJmNTse")"
+		
+		
+		request.httpMethod = "POST"
+		request.httpBody = postString.data(using: .utf8)
+		
+		let task = URLSession.shared.dataTask(with: request) { data, response, error in
+			guard let data = data, error == nil else {
+				// check for fundamental networking error
+				print("error=\(String(describing: error))")
+				return
+			}
+			
+			if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {
+				// check for http errors
+				print("statusCode should be 200, but is \(httpStatus.statusCode)")
+				print("response = \(String(describing: response))")
+			}
+			OperationQueue.main.addOperation {
+				let json = try! JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any]
+				let info = json?["products"] as? [[String: Any]]
+				if info != nil {
+					print("\n\nFound Information\n\n")
+					for item in info! {
+						self.nameInput.text = item["product_name"] as! String
+						self.imgURL = item["product_image_url"] as! String
+						if self.imgURL.starts(with: "http:") {
+							let ind = self.imgURL.index(of: ":")!
+							self.imgURL.insert("s", at: ind)
+						}
+						print(self.imgURL)
+					}
+				} else {
+					print("\n\nNOT Found Information\n\n")
+					self.popAlert(content: "No information found. Please enter manually.")
+				}
+			}
+			
+		}
+		task.resume()
+	}
+	
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
@@ -86,17 +204,60 @@ class ManualInputViewController: UIViewController, UIPickerViewDelegate, UIPicke
 		if checkInput() {
 //			let name = nameInput.text!
 //			let category = Category(rawValue: categoryInput.text!)!
-//			let dateFormatter = DateFormatter()
-//			dateFormatter.dateFormat = "yyyy-MM-dd"
-//			let expDate : Date = dateFormatter.date(from: dateInput.text!)!
+			let dateFormatter = DateFormatter()
+			dateFormatter.dateFormat = "yyyy-MM-dd"
+			let expDate2 : Date = dateFormatter.date(from: dateInput.text!)!
 //			let notifyDay : Int = Int(dayInput.text!)!
 			let name = nameInput.text!
 			let category = categoryInput.text!
 			let expDate = dateInput.text!
 			let notifyDay = dayInput.text!
-			let data = [name, category, expDate, notifyDay]
+			let imgName = imgURL
+			
+			let data = [name, category, expDate, notifyDay, imgName]
 			var list = UserDefaults.standard.array(forKey: "expData")!
 			list += [data]
+			
+			//notifications
+			print(Int(round(expDate2.timeIntervalSinceNow)) - Int(dayInput.text!)! * 3600 * 24)
+			let center = UNUserNotificationCenter.current()
+			let options: UNAuthorizationOptions = [.alert, .sound, .badge];
+			center.requestAuthorization(options: options) {
+				(granted, error) in
+				if !granted {
+					print("Something went wrong")
+				}
+				
+			}
+			center.getNotificationSettings { (settings) in
+				if settings.authorizationStatus != .authorized {
+					// Notifications not allowed
+				}
+			}
+			
+			let content = UNMutableNotificationContent()
+			content.title = nameInput.text!
+			content.body = "will expired in " + dayInput.text! + " days! "
+			content.sound = UNNotificationSound.default()
+			
+			var timeInterval = expDate2.timeIntervalSinceNow - Double(dayInput.text!)! * 3600 * 24
+			if timeInterval < 10 {
+				timeInterval = 10
+				content.body = "has already expired!"
+			}
+			//let trigger = UNTimeIntervalNotificationTrigger(timeInterval: expDate2.timeIntervalSinceNow - Double(dayInput.text!)! * 3600 * 24, repeats: false)
+			let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: false)
+			let identifier = nameInput.text!
+			let request = UNNotificationRequest(identifier: identifier,
+			                                    content: content, trigger: trigger)
+			
+			center.add(request, withCompletionHandler: { (error) in
+				if let error = error {
+					// Something went wrong
+				}
+			})
+			
+			
 			UserDefaults.standard.set(list, forKey: "expData")
 			UserDefaults.standard.synchronize()
 			self.navigationController?.dismiss(animated: true, completion: nil)
